@@ -41,10 +41,11 @@ def QueueTriggerPokeReport(azqueue: func.QueueMessage):
     logger.info(f"The requested info {request_info}")
     
     pokemons = get_pokemons(request_info[0]["type"],request_info[0]["samplesize"])
+    pokemons_detailed = get_pokemon_details(pokemons)
     logger.info(f"got pokemons like {pokemons[0]}")
 
     
-    pokemon_bytes = generate_csv_to_blob(pokemons)
+    pokemon_bytes = generate_csv_to_blob(pokemons_detailed)
     logger.info(f"CSV GENERERATED")
     
     blob_name = f"poke_report_{id}.csv"
@@ -111,3 +112,33 @@ def upload_csv_to_blob(blob_name:str, csv_data:bytes):
     except Exception as e:
         logger.error(f"Error uploading blob: {e}")
         raise
+
+
+def get_pokemon_details(pokemons):
+    pokemons_details = []
+    
+    for pokemon in pokemons:
+        try:
+            response = requests.get(pokemon["url"], timeout=3000)
+            data = response.json()
+            
+            pokemon_data = {
+                "name": pokemon["name"],
+                "url": pokemon["url"]
+            }
+            
+            for stat in data.get("stats", []):
+                stat_name = stat["stat"]["name"]
+                pokemon_data[stat_name] = stat["base_stat"]
+            
+            abilities = data.get("abilities", [])
+            abilities_names = [ability["ability"]["name"] for ability in abilities]
+            pokemon_data["abilities"] = ", ".join(abilities_names)
+            
+            pokemons_details.append(pokemon_data)
+            
+        except Exception as e:
+            logger.error(f"Error al obtener detalles de {pokemon['name']}: {e}")
+            continue
+    
+    return pokemons_details
